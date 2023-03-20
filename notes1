@@ -1,0 +1,55 @@
+import gurobipy as gp
+from gurobipy import GRB
+import numpy as np
+
+def get_demand(coeff, b, prices):
+    assert len(coeff) == len(prices)
+    d = b
+    for i in range(len(coeff)):
+        d += coeff[i]*prices[i]
+    return d
+    
+def get_demands_rev(a, b, hist_p, p):
+    """ represent the next n days demands and total revenue, based on:
+        1. the fitted coefficients a,b
+        2. the historical price hist_p
+        3. and the future price decisions represented by binary variable x
+    """
+    all_p = hist_p + p
+    t = len(a)
+    d = [get_demand(coeff=a, b=b, prices=all_p[i+1:i+1+t]) for i in range(t)]
+    rev = np.dot(d, p)
+    return d, rev
+    
+m = gp.Model('Option Pricing')
+
+t = len(a0) # next number of days to optimize
+n_level = len(price_levels)  # number of price options
+
+x = []
+p = []
+
+# get p
+for i in range(t):
+    p_i = 0
+    for j in range(n_level):
+        x_ij = m.addVar(vtype=GRB.BINARY, name=f"X_{i*n_level+j:03d}")
+        x.append(x_ij)
+        p_i += x_ij*price_levels[j]
+    p.append(p_i)
+    
+# plus historical prices
+all_p = p_data + p
+
+
+d, rev = get_demands_rev(a=a0, b=b0, hist_p=p_data, p=p)
+
+obj = -gp.quicksum(rev) + Ld*gp.quicksum((gp.quicksum(x[i]*x[j]*np.exp(-np.abs(price_levels[i]-price_levels[j])/Lp) 
+                                             for i in range(n_level) for j in range(n_level)) - 2*n_level)
+
+m.setObjective(obj, GRB.MAXIMIZE)
+    
+# demand constraints
+for i in range(t):
+    demand_i = get_demand(a=a0, b=b0, prices=all_p[i+1:i+1+t])
+    m.addConstr(demand_i <= capacity[i])  
